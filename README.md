@@ -34,8 +34,8 @@ For setting breakpoints, the library provides:
 
 ```c
 // Find address for a source location
-uint16_t symbols_find_address(const symbol_table_t* table, 
-                            const char* filename, int line);
+bool symbols_find_address(const symbol_table_t* table, const char* filename,uint16_t *address, int line);
+
 
 // Get source location for an address
 const char* symbols_get_file(const symbol_table_t* table, uint16_t address);

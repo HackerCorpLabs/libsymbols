@@ -97,8 +97,18 @@ bool symbols_add_entry(symbol_table_t* table, const char* filename, const char* 
 
     // Initialize new entry
     symbol_entry_t* entry = &table->entries[table->count];
-    entry->filename = filename;
-    entry->name = name;
+    
+    if (filename) {
+        entry->filename = strdup(filename);
+    } else {
+        entry->filename = NULL;
+    }
+
+    if (name) {
+        entry->name = strdup(name);
+    } else {
+        entry->name = NULL;
+    }
     entry->line = line;
     entry->address = address;
     entry->type = type;
@@ -152,8 +162,22 @@ bool symbols_load_aout(symbol_table_t* table, const char* filename) {
         return false;
     }
 
+    
+    // Ad a N_SO symbol to tell that source files begins here
+    // If not, symbols_find_address() will not find this file
+    symbol_entry_t filename_begin = {
+            .filename = filename,
+            .name = NULL,
+            .line = 0,
+            .address = 0,
+            .type = SYMBOL_TYPE_FILE,
+            .owns_strings = false
+    };
+
+    symbols_add_entry(table, filename_begin.filename, filename_begin.name, filename_begin.line, filename_begin.address, filename_begin.type);
+
     bool success = true;
-    for (size_t i = 0; i < count; i++) {
+    for (size_t i = 0; i < count; i++) {        
         // Skip undefined symbols
         if ((entries[i].n_type & 0x1e) == N_UNDF) {
             continue;
@@ -176,6 +200,21 @@ bool symbols_load_aout(symbol_table_t* table, const char* filename) {
     }
 
     nlist_free_entries(entries, count);
+
+    // Add a N_SO symbol to tell that source files begins here
+    // If not, symbols_find_address() will not find this file
+    symbol_entry_t filename_done = {
+            .filename = "",
+            .name = NULL,
+            .line = 0,
+            .address = 0,
+            .type = SYMBOL_TYPE_FILE,
+            .owns_strings = false
+    };
+
+    // Add an "empty" N_SO to tell that source files ends here
+    symbols_add_entry(table, filename_done.filename, filename_done.name, filename_done.line, filename_done.address, filename_done.type);
+
     return success;
 }
 
@@ -189,6 +228,19 @@ bool symbols_load_map(symbol_table_t* table, const char* filename) {
     if (!mapfile_parse_file(filename, &entries, &count)) {
         return false;
     }
+
+    // Ad a N_SO symbol to tell that source files begins here
+    // If not, symbols_find_address() will not find this file
+    symbol_entry_t filename_begin = {
+            .filename = entries[0].filename,
+            .name = NULL,
+            .line = 0,
+            .address = 0,
+            .type = SYMBOL_TYPE_FILE,
+            .owns_strings = false
+    };
+
+    symbols_add_entry(table, filename_begin.filename, filename_begin.name, filename_begin.line, filename_begin.address, filename_begin.type);
 
     bool success = true;
     for (size_t i = 0; i < count; i++) {
@@ -209,6 +261,21 @@ bool symbols_load_map(symbol_table_t* table, const char* filename) {
     }
 
     mapfile_free_entries(entries, count);
+
+    // Add a N_SO symbol to tell that source files begins here
+    // If not, symbols_find_address() will not find this file
+    symbol_entry_t filename_done = {
+            .filename = "",
+            .name = NULL,
+            .line = 0,
+            .address = 0,
+            .type = SYMBOL_TYPE_FILE,
+            .owns_strings = false
+    };
+
+    // Add an "empty" N_SO to tell that source files ends here
+    symbols_add_entry(table, filename_done.filename, filename_done.name, filename_done.line, filename_done.address, filename_done.type);
+
     return success;
 }
 
@@ -246,19 +313,20 @@ void symbols_dump_all(const symbol_table_t* table) {
 }
 
 // Find address for a source location
-uint16_t symbols_find_address(const symbol_table_t* table, const char* filename, int line) {
+bool symbols_find_address(const symbol_table_t* table, const char* filename,uint16_t *address, int line) {
     if (!table || !filename) return 0;
 
     // First, find the file entry
     const symbol_entry_t* file_entry = NULL;
     for (size_t i = 0; i < table->count; i++) {
         if (table->entries[i].type == SYMBOL_TYPE_FILE &&
+            table->entries[i].filename != NULL &&
             strcmp(table->entries[i].filename, filename) == 0) {
             file_entry = &table->entries[i];
             break;
         }
     }
-    if (!file_entry) return 0;
+    if (!file_entry) return false;
 
     // Then find the closest line number entry
     uint16_t closest_address = 0;
@@ -275,7 +343,8 @@ uint16_t symbols_find_address(const symbol_table_t* table, const char* filename,
         }
     }
 
-    return closest_address;
+    *address = closest_address;;
+    return true;
 }
 
 // Get source file for an address

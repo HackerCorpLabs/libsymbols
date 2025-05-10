@@ -26,7 +26,7 @@
 #define N_EXT  0x1     // External symbol
 
 // Memory layout constants
-#define TEXT_START 01000  // Start of text segment
+#define TEXT_START 00000  // Start of text segment - start at address 0
 #define DATA_START(text_size) (TEXT_START + (text_size))  // Start of data segment
 
 // a.out header structure

@@ -62,7 +62,12 @@ bool mapfile_parse_file(const char* filename, map_entry_t** entries, size_t* cou
 
         // Extract address
         char* addr_str = trim_whitespace(arrow + 2);
-        uint16_t address = (uint16_t)strtoul(addr_str, NULL, 16);
+        uint16_t address;
+        if (strlen(addr_str) == 6 && (addr_str[0] == '0' || addr_str[0] == '1')) {
+            address = (uint16_t)strtoul(addr_str, NULL, 8);  // Parse as octal
+        } else {
+            address = (uint16_t)strtoul(addr_str, NULL, 16); // Parse as hex
+        }
 
         // Resize if needed
         if (*count >= capacity) {
