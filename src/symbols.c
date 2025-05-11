@@ -98,21 +98,29 @@ bool symbols_add_entry(symbol_table_t* table, const char* filename, const char* 
     // Initialize new entry
     symbol_entry_t* entry = &table->entries[table->count];
     
+    // Set string ownership to true since we're duplicating the strings
+    entry->owns_strings = true;
+    
     if (filename) {
         entry->filename = strdup(filename);
+        if (!entry->filename) return false;
     } else {
         entry->filename = NULL;
     }
 
     if (name) {
         entry->name = strdup(name);
+        if (!entry->name) {
+            free((void*)entry->filename);
+            return false;
+        }
     } else {
         entry->name = NULL;
     }
+    
     entry->line = line;
     entry->address = address;
     entry->type = type;
-    entry->owns_strings = false;  // Caller owns the strings
 
     table->count++;
     return true;
