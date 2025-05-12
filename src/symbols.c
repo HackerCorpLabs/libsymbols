@@ -402,7 +402,10 @@ bool symbols_is_line_entry(const symbol_entry_t* entry) {
     return entry && entry->type == SYMBOL_TYPE_LINE;
 }
 
-// Get next line address for stepping
+/// @brief Finds the memory address of the next source code line for stepping through code
+/// @param table Pointer to the symbol table containing line number to address mappings
+/// @param current_address The current memory address to find the next line from
+/// @return The memory address of the next line in the same source file, or 0 if no next line exists
 uint16_t symbols_get_next_line_address(const symbol_table_t* table, uint16_t current_address) {
     if (!table) return 0;
 

@@ -5,10 +5,11 @@
 #include <errno.h>
 
 // Helper function to read a 16-bit value in little-endian
+/*
 static uint16_t read_le16(const uint8_t* data) {
     return (uint16_t)data[0] | ((uint16_t)data[1] << 8);
 }
-
+*/
 bool nlist_parse_file(const char* filename, struct aout_nlist** entries, size_t* count, bool dump_code) {
     if (!filename || !entries || !count) return false;
 
