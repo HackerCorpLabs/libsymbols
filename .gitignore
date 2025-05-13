@@ -57,3 +57,5 @@ test/test_symbols_map
 test/test_performance
 test/test_mapfile
 .gitignore
+test/test_performance
+test/test_symbols_aout
