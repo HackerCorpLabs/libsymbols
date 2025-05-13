@@ -588,10 +588,12 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
 
     // Read a.out header
     aout_header_t header;
-    if (fread(&header, sizeof(header), 1, file) != 1)
-    {
-        fclose(file);
-        return false;
+    for (int i = 0; i < sizeof(header) / 2; i++) {
+        uint16_t* field = ((uint16_t*)&header) + i;
+        if (fread(field, 2, 1, file) != 1) {
+            fclose(file);
+            return false;
+        }
     }
 
     // Initialize binary info
@@ -607,11 +609,14 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
         return false;
     }
 
+    // Skip zero page if present (like in aout.c)
+    fseek(file, 16 + header.a_zp * 2, SEEK_SET);
+
     // Load text segment
-    info->segments[0].start_address = 0;
+    info->segments[0].start_address = 0; // TEXT_START in memory
     info->segments[0].size = header.a_text;
     info->segments[0].is_text = true;
-    info->segments[0].data = malloc(header.a_text);
+    info->segments[0].data = malloc(header.a_text * 2); // * 2 because we need bytes not words
     if (!info->segments[0].data)
     {
         free(info->segments);
@@ -619,19 +624,26 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
         return false;
     }
 
-    if (fread(info->segments[0].data, header.a_text, 1, file) != 1)
-    {
-        free(info->segments[0].data);
-        free(info->segments);
-        fclose(file);
-        return false;
+    // Read text segment word by word and convert to bytes
+    for (size_t i = 0; i < header.a_text; i++) {
+        uint16_t word;
+        if (fread(&word, 2, 1, file) != 1) {
+            free(info->segments[0].data);
+            free(info->segments);
+            fclose(file);
+            return false;
+        }
+        
+        // Store in byte array (little endian)
+        info->segments[0].data[i*2] = word & 0xFF;
+        info->segments[0].data[i*2+1] = (word >> 8) & 0xFF;
     }
 
-    // Load data segment
-    info->segments[1].start_address = header.a_text;
+    // Load data segment - properly located after text
+    info->segments[1].start_address = header.a_text; // DATA_START is text_size in aout
     info->segments[1].size = header.a_data;
     info->segments[1].is_text = false;
-    info->segments[1].data = malloc(header.a_data);
+    info->segments[1].data = malloc(header.a_data * 2); // * 2 because we need bytes not words
     if (!info->segments[1].data)
     {
         free(info->segments[0].data);
@@ -640,13 +652,20 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
         return false;
     }
 
-    if (fread(info->segments[1].data, header.a_data, 1, file) != 1)
-    {
-        free(info->segments[1].data);
-        free(info->segments[0].data);
-        free(info->segments);
-        fclose(file);
-        return false;
+    // Read data segment word by word and convert to bytes
+    for (size_t i = 0; i < header.a_data; i++) {
+        uint16_t word;
+        if (fread(&word, 2, 1, file) != 1) {
+            free(info->segments[1].data);
+            free(info->segments[0].data);
+            free(info->segments);
+            fclose(file);
+            return false;
+        }
+        
+        // Store in byte array (little endian)
+        info->segments[1].data[i*2] = word & 0xFF;
+        info->segments[1].data[i*2+1] = (word >> 8) & 0xFF;
     }
 
     info->segment_count = 2;

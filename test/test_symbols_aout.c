@@ -27,7 +27,8 @@ static void dump_code(const binary_info_t* info) {
 
         // Print header with actual addresses (only as many as needed for the first line)
         size_t segment_bytes = seg->size * 2;
-        int header_cols = segment_bytes < 16 ? segment_bytes : 16;
+        // Always show all 16 columns for consistent formatting
+        int header_cols = 16;
         printf("Offset(o)  ");
         for (int col = 0; col < header_cols; col++) printf(" %03o", col);
         printf("  | Decoded text\n");
