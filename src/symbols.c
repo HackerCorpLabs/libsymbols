@@ -1,21 +1,12 @@
 #include "symbols.h"
 #include "stabs.h"
-#include "nlist.h"
+#include "aout.h"
 #include "mapfile.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
-#include <a.out.h> // For struct exec definition
-
-// Symbol table structure
-struct symbol_table
-{
-    symbol_entry_t *entries;
-    size_t count;
-    size_t capacity;
-};
 
 // Comparison function for qsort and bsearch
 int compare_entries_by_address(const void *a, const void *b)
@@ -39,8 +30,6 @@ static symbol_type_t map_stabs_type(int type_code)
         return SYMBOL_TYPE_FILE;
     case N_SLINE:
         return SYMBOL_TYPE_LINE;
-    case N_TYPE:
-        return SYMBOL_TYPE_TYPE;
     default:
         return SYMBOL_TYPE_UNKNOWN;
     }
@@ -269,6 +258,12 @@ bool symbols_load_stabs(symbol_table_t *table, const char *filename)
         }
     }
 
+    if (start_symbol_added)
+    {
+        // add ending symbol
+        add_file_start_symbol(table, "", false);
+    }
+
     stabs_free_entries(entries, count);
     return success;
 }
@@ -279,10 +274,10 @@ bool symbols_load_aout(symbol_table_t *table, const char *filename)
     if (!table || !filename)
         return false;
 
-    // Parse nlist entries
-    struct aout_nlist *entries = NULL;
+    aout_entry_t *entries = NULL;
     size_t count = 0;
-    if (!nlist_parse_file(filename, &entries, &count, false))
+
+    if (!aout_parse_file(filename, &entries, &count))
     {
         return false;
     }
@@ -291,46 +286,58 @@ bool symbols_load_aout(symbol_table_t *table, const char *filename)
     size_t fname_len = strlen(filename);
     char *filename_s = malloc(fname_len + 4);
 
-    // replace .out with .s
+    // replace .out with .smake all
     strncpy(filename_s, filename, strlen(filename) - 4);
     filename_s[strlen(filename) - 4] = '\0';
     strcat(filename_s, ".s");
 
     // Add a symbol to tell that source files begins here
     bool start_symbol_added = add_file_start_symbol(table, filename_s, true);
+    free(filename_s);
 
     bool success = true;
-    for (size_t i = 0; i < count; i++)
+    for (int i = 0; i < count; i++)
     {
-        // Skip undefined symbols
-        if ((entries[i].n_type & 0x1e) == N_UNDF)
-        {
-            continue;
-        }
 
+        // Create symbol entry
         symbol_entry_t entry = {
             .filename = NULL,
-            .name = entries[i].n_un.n_name,
+            .name = entries[i].name,
             .line = 0,
-            .address = entries[i].n_value,
-            .type = map_nlist_type(entries[i].n_type),
+            .address = entries[i].value,
+            .type = map_nlist_type(entries[i].type),
             .owns_strings = false};
 
         if (!symbols_add_entry(table, entry.filename, entry.name,
                                entry.line, entry.address, entry.type))
         {
+            
             success = false;
             break;
         }
-    }
+        else
+        {
+          char s_name[100];
+          if (entry.name)
+          {
+            strcpy(s_name, entry.name);
+          }
+          else
+          {
+            strcpy(s_name, "(null)");
+          }
 
-    nlist_free_entries(entries, count);
+            printf("[%d] Added symbol: %s at %06o, Type 0x%04x '%s'\n", i, s_name, entry.address, entries[i].type, get_symbol_type(entries[i].type));
+        }
+    }
 
     if (start_symbol_added)
     {
         // add ending symbol
         add_file_start_symbol(table, "", false);
     }
+
+    aout_free_entries(entries, count);
     return success;
 }
 
@@ -414,7 +421,7 @@ void symbols_dump_all(const symbol_table_t *table)
         printf("  Type: %d\n", entry->type);
         printf("  File: %s\n", entry->filename ? entry->filename : "(none)");
         printf("  Line: %d\n", entry->line);
-        printf("  Address: 0x%04X\n", entry->address);
+        printf("  Address: %06o\n", entry->address);
         printf("\n");
     }
 }
@@ -580,7 +587,7 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
         return false;
 
     // Read a.out header
-    struct exec header;
+    aout_header_t header;
     if (fread(&header, sizeof(header), 1, file) != 1)
     {
         fclose(file);
@@ -601,7 +608,7 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
     }
 
     // Load text segment
-    info->segments[0].start_address = header.a_text;
+    info->segments[0].start_address = 0;
     info->segments[0].size = header.a_text;
     info->segments[0].is_text = true;
     info->segments[0].data = malloc(header.a_text);
@@ -621,7 +628,7 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
     }
 
     // Load data segment
-    info->segments[1].start_address = header.a_data;
+    info->segments[1].start_address = header.a_text;
     info->segments[1].size = header.a_data;
     info->segments[1].is_text = false;
     info->segments[1].data = malloc(header.a_data);

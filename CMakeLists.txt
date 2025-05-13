@@ -16,7 +16,7 @@ endif()
 
 # Define the source files
 file(GLOB SYMBOLS_SOURCES "src/*.c")
-set(SYMBOLS_HEADERS "include/symbols.h" "include/mapfile.h" "include/nlist.h" "include/stabs.h")
+set(SYMBOLS_HEADERS "include/symbols.h" "include/mapfile.h" "include/aout.h" "include/stabs.h")
 
 # Create an object library
 add_library(symbols_objects OBJECT ${SYMBOLS_SOURCES})

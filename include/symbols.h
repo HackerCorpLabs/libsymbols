@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "stabs.h"
-#include "nlist.h"
+#include "aout.h"
 #include "mapfile.h"
 
 // Symbol types supported by the library
@@ -14,9 +14,10 @@ typedef enum {
     SYMBOL_TYPE_FUNCTION,
     SYMBOL_TYPE_VARIABLE,
     SYMBOL_TYPE_FILE,
-    SYMBOL_TYPE_LINE,
-    SYMBOL_TYPE_TYPE
+    SYMBOL_TYPE_LINE,    
 } symbol_type_t;
+
+
 
 // Structure for a symbol table entry
 typedef struct {

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include "../include/symbols.h"
 
 static void print_usage(const char* program) {
@@ -16,7 +17,7 @@ static void dump_code(const binary_info_t* info) {
     }
 
     printf("Binary Code Dump (octal):\n");
-    printf("========================\n");
+    printf("=========================\n");
 
     for (size_t i = 0; i < info->segment_count; i++) {
         const memory_segment_t* seg = &info->segments[i];
@@ -24,14 +25,46 @@ static void dump_code(const binary_info_t* info) {
                i, seg->is_text ? "TEXT" : "DATA",
                seg->start_address, seg->size);
 
-        // Print 16 bytes per line
-        for (uint16_t addr = 0; addr < seg->size; addr += 16) {
-            // Print address
-            printf("%06o:", seg->start_address + addr);
+        // Print header with actual addresses (only as many as needed for the first line)
+        size_t segment_bytes = seg->size * 2;
+        int header_cols = segment_bytes < 16 ? segment_bytes : 16;
+        printf("Offset(o)  ");
+        for (int col = 0; col < header_cols; col++) printf(" %03o", col);
+        printf("  | Decoded text\n");
+        
+        // Print a line of dashes matching the exact width of the header
+        printf("%s", "---------  ");
+        for (int col = 0; col < header_cols; col++) printf(" ---");
+        printf("  | ----------------\n");
 
-            // Print values
-            for (int j = 0; j < 16 && (addr + j) < seg->size; j++) {
-                printf(" %03o", seg->data[addr + j]);
+        // Print 16 bytes per line
+        for (size_t addr = 0; addr < segment_bytes; addr += 16) {
+            // Print address
+            printf("%06o     ", seg->start_address + addr);
+
+            // Print octal values
+            for (int j = 0; j < 16; j++) {
+                if ((addr + j) < segment_bytes)
+                    printf(" %03o", seg->data[addr + j]);
+                else
+                    printf("    ");
+            }
+            
+            // Ensure consistent spacing before ASCII section
+            printf("  | ");
+            
+            // Print ASCII representation with byte swap in pairs
+            for (int j = 0; j < 16; j += 2) {
+                if ((addr + j + 1) < segment_bytes) {
+                    uint8_t b = seg->data[addr + j + 1];
+                    uint8_t a = seg->data[addr + j];
+                    printf("%c%c", isprint(b) ? b : '.', isprint(a) ? a : '.');
+                } else if ((addr + j) < segment_bytes) {
+                    uint8_t a = seg->data[addr + j];
+                    printf("%c ", isprint(a) ? a : '.');
+                } else {
+                    printf("  ");
+                }
             }
             printf("\n");
         }
@@ -80,6 +113,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+
+
     // Load binary if requested
     binary_info_t binary_info;
     if (should_dump_code) {
@@ -88,8 +123,9 @@ int main(int argc, char* argv[]) {
             symbols_free(table);
             return 1;
         }
-    }
+    } 
 
+    
     // Dump symbols
     printf("Symbols from %s:\n", filename);
     printf("================\n\n");
