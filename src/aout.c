@@ -77,11 +77,11 @@ const char *magic2str(uint16_t magic)
     }
 }
 
-const char *get_symbol_type(uint16_t type)
+const char *get_symbol_type(uint8_t type)
 {
     static char buf[100];
     // Keep the original type for comparison
-    uint16_t original_type = type;
+    uint8_t original_type = type;
     if (type & N_EXT)
     {
         strcpy(buf, "EXTERNAL ");
@@ -255,6 +255,29 @@ const char *get_symbol_type(uint16_t type)
         break;
     }
     return buf;
+}
+
+
+/// @brief Some types have a description field  
+/// @param type 
+/// @return 
+const char *get_symbol_desc(uint8_t type)
+{
+    switch(type & ~N_EXT)
+    {
+    case N_SLINE:
+        return "Source line number";
+    case N_PSYM:
+        return "Register number";
+    case N_RSYM:
+        return "Register number";
+    case N_LSYM:
+        return "Register number (if register variable)";
+    case N_LBRAC:
+        return "Nesting level";
+    default:
+        return "Not used";
+    }
 }
 
 void load_symbols_with_string_table(FILE *f, long sym_offset, uint32_t num_bytes_syms, bool verbose)
@@ -506,16 +529,18 @@ bool aout_parse_file(const char *filename, aout_entry_t **entries, size_t *count
 
         // Initialize the entry directly in the array
         (*entries)[i].name = strdup(name);
-        (*entries)[i].type = nlist_sym.n_type;
+        (*entries)[i].desc = (nlist_sym.n_type>>8) & 0xFF;
+        (*entries)[i].type = (nlist_sym.n_type & 0xFF);
         (*entries)[i].value = nlist_sym.n_value;
 
         if (true)
         {
             // Print symbol information
-            printf("%-70s %-20s 0x%04x %06o\n",
+            printf("%-70s %-20s 0x%02x 0x%02x %06o\n",
                    (*entries)[i].name,
                    get_symbol_type((*entries)[i].type),
                    (*entries)[i].type,
+                   (*entries)[i].desc,
                    (*entries)[i].value);
         }
 

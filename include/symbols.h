@@ -9,6 +9,7 @@
 #include "mapfile.h"
 
 // Symbol types supported by the library
+// TODO: Refactor to use STABS types
 typedef enum {
     SYMBOL_TYPE_UNKNOWN = 0,
     SYMBOL_TYPE_FUNCTION,
@@ -26,6 +27,7 @@ typedef struct {
     int line;               // Line number
     uint16_t address;       // Memory address
     symbol_type_t type;     // Symbol type
+    uint8_t desc;           // Symbol description
     bool owns_strings;      // Whether this entry owns its strings
 } symbol_entry_t;
 

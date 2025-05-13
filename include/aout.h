@@ -48,7 +48,8 @@ typedef struct {
 /// @brief Symbol table entry structure on disk
 typedef struct {
     char *name;   // Symbol name
-    uint16_t type;   // Symbol type
+    uint8_t desc;   // Symbol description (source line number, register number, nesting level, etc)
+    uint8_t type;   // Symbol type    
     uint16_t value;  // Symbol value
 } aout_entry_t;
 
@@ -446,7 +447,28 @@ typedef struct {
 // I need a callback function to write to memory
 typedef void (*write_memory_callback)(uint16_t address, uint16_t value);
 
+/// @brief Parse a.out file and return a list of symbols
+/// @param filename 
+/// @param entries 
+/// @param count 
+/// @return 
+bool aout_parse_file(const char *filename, aout_entry_t **entries, size_t *count);
+
+/// @brief Load a.out file into memory
+/// @param filename 
+/// @param verbose 
+/// @param write_memory 
+/// @return 
 int load_aout(const char* filename, bool verbose, write_memory_callback write_memory);
-const char *get_symbol_type(uint16_t type);
+
+/// @brief Get the type of a symbol
+/// @param type 
+/// @return 
+const char *get_symbol_type(uint8_t type);
+
+/// @brief Get the description of a symbol
+/// @param desc 
+/// @return Description of the 'desc' field for this type
+const char *get_symbol_desc(uint8_t type);
 
 #endif /* AOUT_H */ 

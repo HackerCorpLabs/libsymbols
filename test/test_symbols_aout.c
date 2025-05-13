@@ -16,6 +16,7 @@ static void dump_code(const binary_info_t* info) {
         return;
     }
 
+    printf("\n");
     printf("Binary Code Dump (octal):\n");
     printf("=========================\n");
 
@@ -126,7 +127,7 @@ int main(int argc, char* argv[]) {
         }
     } 
 
-    
+#if 0 // This is just wrong because its using a "common" enum for type. Refactor to use STABS types    
     // Dump symbols
     printf("Symbols from %s:\n", filename);
     printf("================\n\n");
@@ -135,12 +136,14 @@ int main(int argc, char* argv[]) {
         const symbol_entry_t* entry = &table->entries[i];
         printf("Symbol %zu:\n", i);
         printf("  Name: %s\n", entry->name ? entry->name : "(none)");
-        printf("  Type: %d\n", entry->type);
+        printf("  Type: 0x%02x (%s)\n", entry->type, get_symbol_type(entry->type));
+        printf("  Desc: 0x%02x (%s)\n", entry->desc, entry->desc ? get_symbol_desc(entry->type) : "Not used");
         printf("  File: %s\n", entry->filename ? entry->filename : "(none)");
         printf("  Line: %d\n", entry->line);
         printf("  Address: %06o\n", entry->address);
         printf("\n");
     }
+#endif
 
     // Dump code if requested
     if (should_dump_code) {

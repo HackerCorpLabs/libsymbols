@@ -327,7 +327,14 @@ bool symbols_load_aout(symbol_table_t *table, const char *filename)
             strcpy(s_name, "(null)");
           }
 
-            printf("[%d] Added symbol: %s at %06o, Type 0x%04x '%s'\n", i, s_name, entry.address, entries[i].type, get_symbol_type(entries[i].type));
+
+            printf("[%d] Added symbol: %s at %06o, Type 0x%04x '%s'", i, s_name, entry.address, entries[i].type, get_symbol_type(entries[i].type));
+            if (entries[i].desc>0)
+            {
+                printf(", desc: %d (%s)", entries[i].desc, get_symbol_desc(entries[i].type));
+            }
+            printf("\n");
+
         }
     }
 
