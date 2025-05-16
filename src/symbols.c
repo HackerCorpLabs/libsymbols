@@ -296,7 +296,7 @@ bool symbols_load_aout(symbol_table_t *table, const char *filename)
     free(filename_s);
 
     bool success = true;
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < (int)count; i++)
     {
 
         // Create symbol entry
@@ -551,7 +551,6 @@ uint16_t symbols_get_next_line_address(const symbol_table_t *table, uint16_t cur
 {
     if (!table)
         return 0;
-
     // Find the current line entry
     const symbol_entry_t *current = NULL;
     uint16_t closest_diff = UINT16_MAX;
@@ -603,7 +602,7 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
 
     // Read a.out header
     aout_header_t header;
-    for (int i = 0; i < sizeof(header) / 2; i++) {
+    for (int i = 0; i < (int)sizeof(header) / 2; i++) {
         uint16_t* field = ((uint16_t*)&header) + i;
         if (fread(field, 2, 1, file) != 1) {
             fclose(file);

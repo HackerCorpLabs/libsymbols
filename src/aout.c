@@ -48,10 +48,12 @@ static int read_word(FILE *f, uint16_t *out_word)
 }
 
 // Swaps a little-endian word to big-endian for memory storage
+/* NOT USED
 static uint16_t to_big_endian(uint16_t word)
 {
     return (word >> 8) | (word << 8);
 }
+*/
 
 /// @brief Magic number to string
 /// @param magic
@@ -332,6 +334,12 @@ void load_symbols_with_string_table(FILE *f, long sym_offset, uint32_t num_bytes
     }
 }
 
+/// @brief Load a.out header from file. 
+/// @param f File pointer to the a.out file
+/// @param header Pointer to aout_header_t structure to store the header information
+/// @param verbose Print header information if true
+/// @return  0 on success, -1 on error
+/// @details Reads the a.out header fields from the file and stores them in the provided structure.
 int load_header(FILE *f, aout_header_t *header, bool verbose)
 {
     // Read and parse all 8 header fields from the file

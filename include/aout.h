@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 
 // a.out format definitions
 #define A_MAGIC1 0407    // Normal executable
@@ -470,5 +471,14 @@ const char *get_symbol_type(uint8_t type);
 /// @param desc 
 /// @return Description of the 'desc' field for this type
 const char *get_symbol_desc(uint8_t type);
+
+
+/// @brief Get the symbol type from a nlist type
+/// @param type
+void aout_free_entries(aout_entry_t *entries, size_t count);
+
+/// @brief Load symbols from a file
+/// @param f
+int load_header(FILE *f, aout_header_t *header, bool verbose);
 
 #endif /* AOUT_H */ 
