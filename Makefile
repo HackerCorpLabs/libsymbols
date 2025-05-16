@@ -19,7 +19,7 @@ CMAKE_BUILD_TYPE = Release
 .PHONY: all clean test cmake cmake-debug cmake-test cmake-clean help
 
 # Default target uses traditional Makefile build
-all: $(LIB)
+all: $(LIB) dump_header
 
 $(LIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^
@@ -49,17 +49,21 @@ cmake-clean:
 
 # Traditional clean and test targets
 clean: cmake-clean
-	rm -rf $(OBJ_DIR) $(LIB)
+	rm -rf $(OBJ_DIR) $(LIB) ./test/dump_header
 	$(MAKE) -C test clean
 
 test: $(LIB)
 	$(MAKE) -C test
+
+dump_header: test/dump_header.c $(LIB)
+	$(CC) $(CFLAGS) test/dump_header.c -o test/dump_header -L. -lsymbols
 
 # Help message
 help:
 	@echo "Available targets:"
 	@echo "  all          - Build the library using traditional make (default)"
 	@echo "  test         - Build and run tests using traditional make"
+	@echo "  dump_header  - Build the dump_header test program"
 	@echo "  clean        - Clean all build artifacts"
 	@echo "  cmake        - Build using CMake with Release configuration"
 	@echo "  cmake-debug  - Build using CMake with Debug configuration"

@@ -50,3 +50,11 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+.gitignore
+
+test/test_performance
+test/test_symbols_aout
+test/test_symbols_map
+test/test_mapfile
+test/dump_header

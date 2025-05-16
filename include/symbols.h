@@ -5,18 +5,20 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "stabs.h"
-#include "nlist.h"
+#include "aout.h"
 #include "mapfile.h"
 
 // Symbol types supported by the library
+// TODO: Refactor to use STABS types
 typedef enum {
     SYMBOL_TYPE_UNKNOWN = 0,
     SYMBOL_TYPE_FUNCTION,
     SYMBOL_TYPE_VARIABLE,
     SYMBOL_TYPE_FILE,
-    SYMBOL_TYPE_LINE,
-    SYMBOL_TYPE_TYPE
+    SYMBOL_TYPE_LINE,    
 } symbol_type_t;
+
+
 
 // Structure for a symbol table entry
 typedef struct {
@@ -25,6 +27,7 @@ typedef struct {
     int line;               // Line number
     uint16_t address;       // Memory address
     symbol_type_t type;     // Symbol type
+    uint8_t desc;           // Symbol description
     bool owns_strings;      // Whether this entry owns its strings
 } symbol_entry_t;
 
@@ -90,7 +93,7 @@ uint16_t symbols_get_entry_point(const binary_info_t* info);
 // DAP-specific functions
 
 // Find address for a source location
-bool symbols_find_address(const symbol_table_t* table, const char* filename,uint16_t *address, int line);
+bool symbols_find_address(const symbol_table_t *table, const char *filename, uint16_t *address, uint16_t *diff,int line);
 
 // Get source file for an address
 const char* symbols_get_file(const symbol_table_t* table, uint16_t address);
