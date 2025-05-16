@@ -434,7 +434,13 @@ void symbols_dump_all(const symbol_table_t *table)
 }
 
 // Find address for a source location
-bool symbols_find_address(const symbol_table_t *table, const char *filename, uint16_t *address, int line)
+/// @param table Pointer to the symbol table
+/// @param filename Name of the source file
+/// @param address Pointer to store the found address
+/// @param diff How many lines diff to tind a valid addreess  (it != 0 if the address is not exact)
+/// @param line Line number to find
+/// @return True if the address was found, false otherwise
+bool symbols_find_address(const symbol_table_t *table, const char *filename, uint16_t *address, uint16_t *diff,int line)
 {
     if (!table || !filename)
         return 0;
@@ -455,6 +461,7 @@ bool symbols_find_address(const symbol_table_t *table, const char *filename, uin
         return false;
 
     // Then find the closest line number entry
+    *diff = 0;
     uint16_t closest_address = 0;
     int closest_line_diff = INT_MAX;
 
@@ -472,6 +479,7 @@ bool symbols_find_address(const symbol_table_t *table, const char *filename, uin
         }
     }
 
+    *diff = closest_line_diff;
     *address = closest_address;
     ;
     return true;
