@@ -437,8 +437,13 @@ typedef struct {
  */
 #define N_NBLCS 0xf8
 
-// Symbol binding definitions
+/// @brief External symbol
 #define N_EXT  0x1     // External symbol
+
+
+/// @brief Mask for type field in n_type
+#define N_TYPE 0x1e      // Mask for type field in n_type
+
 
 // Memory layout constants
 #define TEXT_START 00000  // Start of text segment - start at address 0
