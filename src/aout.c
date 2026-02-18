@@ -397,10 +397,9 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
     // Skip zero page if present
     fseek(f, 16 + header.a_zp * 2, SEEK_SET);
 
-    uint16_t memoryPtr = 0;
     // Load the text segment
     if (verbose)
-        printf("Loading text segment at 0%06o (%u bytes)\n", TEXT_START, header.a_text);
+        printf("Loading text segment at 0%06o (%u words)\n", TEXT_START, header.a_text);
 
     for (uint16_t i = 0; i < header.a_text; i++)
     {
@@ -411,18 +410,16 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
             break;
         }
 
-        dataLoadAddress = TEXT_START + memoryPtr;
-        // printf("Writing TEXT %06o to %06o\n", word, dataLoadAddress);
+        dataLoadAddress = TEXT_START + i;
 
         if (write_memory)
             write_memory(dataLoadAddress, word);
-        memoryPtr++;
     }
 
     // Load the data segment
     uint16_t data_addr = DATA_START(header.a_text);
     if (verbose)
-        printf("Loading data segment at 0%06o (%u bytes)\n", data_addr, header.a_data);
+        printf("Loading data segment at 0%06o (%u words)\n", data_addr, header.a_data);
 
     for (uint16_t i = 0; i < header.a_data; i++)
     {
@@ -433,13 +430,10 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
             break;
         }
 
-        dataLoadAddress = data_addr + memoryPtr;
-        // printf("Writing DATA %06o to %06o\n", word, dataLoadAddress);
+        dataLoadAddress = data_addr + i;
 
         if (write_memory)
             write_memory(dataLoadAddress, word);
-
-        memoryPtr++;
     }
 
     // Calculate symbol table offset
