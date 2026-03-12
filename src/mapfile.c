@@ -44,6 +44,14 @@ bool mapfile_parse_file(const char* filename, map_entry_t** entries, size_t* cou
         char* trimmed = trim_whitespace(line);
         if (*trimmed == '\0' || *trimmed == '#') continue;
 
+        // Skip extended srcmap entries (FUNC, PARAM, LOCAL, LBRAC, RBRAC)
+        if (strncmp(trimmed, "FUNC:", 5) == 0 ||
+            strncmp(trimmed, "PARAM:", 6) == 0 ||
+            strncmp(trimmed, "LOCAL:", 6) == 0 ||
+            strncmp(trimmed, "LBRAC:", 6) == 0 ||
+            strncmp(trimmed, "RBRAC:", 6) == 0)
+            continue;
+
         // Parse filename:line -> address
         char* colon = strchr(trimmed, ':');
         if (!colon) continue;

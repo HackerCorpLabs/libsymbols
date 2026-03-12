@@ -28,6 +28,60 @@ bool symbols_load_stabs(const char* filename);
 bool symbols_load_map(const char* filename);
 ```
 
+### C Source-Level Debug Info
+
+The library can load extended `.srcmap` files produced by `nd100-ld` to support C source-level debugging. This provides function boundaries, parameter names/offsets, and local variable names/offsets for programs compiled with `cc -g`.
+
+```c
+#include "symbols.h"
+
+// Create debug info container
+symbol_debug_info_t *info = symbols_debug_info_create();
+
+// Load extended srcmap entries (FUNC/PARAM/LOCAL/RBRAC)
+if (symbols_load_srcmap_debug(info, "program.srcmap")) {
+    // Find which C function contains an address
+    symbol_function_t *func = symbols_find_function_at(info, 0x0043);
+    if (func) {
+        printf("In function: %s\n", func->name);  // e.g., "sum_to_n"
+
+        // Get parameters and local variables
+        int count;
+        symbol_variable_t *vars = symbols_get_variables(func, &count);
+        for (int i = 0; i < count; i++) {
+            printf("  %s %s: B%+d\n",
+                   vars[i].is_parameter ? "param" : "local",
+                   vars[i].name, vars[i].offset);
+        }
+    }
+}
+
+// Clean up
+symbols_debug_info_free(info);
+```
+
+#### Data Structures
+
+| Type | Description |
+|------|-------------|
+| `symbol_variable_t` | A C parameter or local variable: name, type string, B-register offset, is_parameter flag |
+| `symbol_function_t` | A C function: name, start/end addresses, array of variables |
+| `symbol_debug_info_t` | Container for all functions loaded from a srcmap |
+
+#### API Functions
+
+| Function | Description |
+|----------|-------------|
+| `symbols_debug_info_create()` | Allocate an empty debug info container |
+| `symbols_debug_info_free()` | Free all memory |
+| `symbols_load_srcmap_debug()` | Parse FUNC/PARAM/LOCAL/RBRAC entries from a `.srcmap` file |
+| `symbols_find_function_at()` | Find the function containing a given address |
+| `symbols_get_variables()` | Get the variable array and count for a function |
+
+Variable offsets are relative to the B register (frame pointer):
+- Parameters: positive offsets (B+2 = first param, B+3 = second, etc.)
+- Locals: negative offsets (B-1 = first local, B-2 = second, etc.)
+
 ### Breakpoint Support
 
 For setting breakpoints, the library provides:

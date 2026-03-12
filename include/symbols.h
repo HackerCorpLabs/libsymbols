@@ -90,6 +90,44 @@ const memory_segment_t* symbols_get_segment(const binary_info_t* info, uint16_t 
 // Get entry point address
 uint16_t symbols_get_entry_point(const binary_info_t* info);
 
+// C debug info structures (from extended .srcmap)
+
+typedef struct {
+    char *name;              /* Variable name (without leading _) */
+    char *type_name;         /* Type as string ("int", "int*", etc.) */
+    int offset;              /* Offset from B register */
+    bool is_parameter;       /* true for params, false for locals */
+} symbol_variable_t;
+
+typedef struct {
+    char *name;              /* Function name (without leading _) */
+    uint16_t start_address;  /* Entry point */
+    uint16_t end_address;    /* End of function (from RBRAC or next FUNC) */
+    symbol_variable_t *variables;  /* Array of params + locals */
+    int variable_count;
+    int variable_capacity;
+} symbol_function_t;
+
+typedef struct {
+    symbol_function_t *functions;
+    int function_count;
+    int function_capacity;
+} symbol_debug_info_t;
+
+// Create/free debug info
+symbol_debug_info_t *symbols_debug_info_create(void);
+void symbols_debug_info_free(symbol_debug_info_t *info);
+
+// Load extended srcmap (FUNC/PARAM/LOCAL/LBRAC/RBRAC entries)
+bool symbols_load_srcmap_debug(symbol_debug_info_t *info,
+                               const char *filename);
+
+// Lookup functions
+symbol_function_t *symbols_find_function_at(symbol_debug_info_t *info,
+                                            uint16_t address);
+symbol_variable_t *symbols_get_variables(symbol_function_t *func,
+                                         int *count);
+
 // DAP-specific functions
 
 // Find address for a source location

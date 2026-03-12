@@ -470,6 +470,16 @@ void symbols_dump_all(const symbol_table_t *table)
     }
 }
 
+/// @brief Compare two filenames, matching on basename if full paths differ.
+/// Handles the case where the srcmap stores "hello.c" but the client sends
+/// "/home/user/repos/hello.c", or vice versa.
+static bool filename_match(const char *stored, const char *req_basename)
+{
+    const char *stored_base = strrchr(stored, '/');
+    stored_base = stored_base ? stored_base + 1 : stored;
+    return strcmp(stored_base, req_basename) == 0;
+}
+
 // Find address for a source location
 /// @param table Pointer to the symbol table
 /// @param filename Name of the source file
@@ -482,13 +492,20 @@ bool symbols_find_address(const symbol_table_t *table, const char *filename, uin
     if (!table || !filename)
         return 0;
 
-    // First, find the file entry
+    // Extract basename from the requested filename for fallback matching.
+    // The srcmap may store bare filenames (hello.c) while the client
+    // sends full paths (/home/user/hello.c), or vice versa.
+    const char *req_basename = strrchr(filename, '/');
+    req_basename = req_basename ? req_basename + 1 : filename;
+
+    // First, find the file entry (try exact match, then basename)
     const symbol_entry_t *file_entry = NULL;
     for (size_t i = 0; i < table->count; i++)
     {
         if (table->entries[i].type == SYMBOL_TYPE_FILE &&
             table->entries[i].filename != NULL &&
-            strcmp(table->entries[i].filename, filename) == 0)
+            (strcmp(table->entries[i].filename, filename) == 0 ||
+             filename_match(table->entries[i].filename, req_basename)))
         {
             file_entry = &table->entries[i];
             break;
@@ -496,6 +513,9 @@ bool symbols_find_address(const symbol_table_t *table, const char *filename, uin
     }
     if (!file_entry)
         return false;
+
+    // Use the matched filename for line lookups
+    const char *match_name = file_entry->filename;
 
     // Then find the closest line number entry
     *diff = 0;
@@ -505,7 +525,8 @@ bool symbols_find_address(const symbol_table_t *table, const char *filename, uin
     for (size_t i = 0; i < table->count; i++)
     {
         if (table->entries[i].type == SYMBOL_TYPE_LINE &&
-            strcmp(table->entries[i].filename, filename) == 0)
+            table->entries[i].filename != NULL &&
+            strcmp(table->entries[i].filename, match_name) == 0)
         {
             int line_diff = abs(table->entries[i].line - line);
             if (line_diff < closest_line_diff)
@@ -515,6 +536,7 @@ bool symbols_find_address(const symbol_table_t *table, const char *filename, uin
             }
         }
     }
+
 
     *diff = closest_line_diff;
     *address = closest_address;
