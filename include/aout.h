@@ -445,9 +445,9 @@ typedef struct {
 #define N_TYPE 0x1e      // Mask for type field in n_type
 
 
-// Memory layout constants
+// Memory layout constants - TEXT_START is default for a_entry==0
 #define TEXT_START 00000  // Start of text segment - start at address 0
-#define DATA_START(text_size) (TEXT_START + (text_size))  // Start of data segment
+#define DATA_START(text_start, text_size) ((text_start) + (text_size))  // Start of data segment
 
 
 // I need a callback function to write to memory

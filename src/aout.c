@@ -397,9 +397,12 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
     // Skip zero page if present
     fseek(f, 16 + header.a_zp * 2, SEEK_SET);
 
+    // Use a_entry as load base address (e.g. 010000 for ND-BSD kernel)
+    uint16_t text_start = header.a_entry ? header.a_entry : TEXT_START;
+
     // Load the text segment
     if (verbose)
-        printf("Loading text segment at 0%06o (%u words)\n", TEXT_START, header.a_text);
+        printf("Loading text segment at 0%06o (%u words)\n", text_start, header.a_text);
 
     for (uint16_t i = 0; i < header.a_text; i++)
     {
@@ -410,14 +413,14 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
             break;
         }
 
-        dataLoadAddress = TEXT_START + i;
+        dataLoadAddress = text_start + i;
 
         if (write_memory)
             write_memory(dataLoadAddress, word);
     }
 
     // Load the data segment
-    uint16_t data_addr = DATA_START(header.a_text);
+    uint16_t data_addr = DATA_START(text_start, header.a_text);
     if (verbose)
         printf("Loading data segment at 0%06o (%u words)\n", data_addr, header.a_data);
 

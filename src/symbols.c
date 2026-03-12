@@ -265,6 +265,10 @@ bool symbols_load_stabs(symbol_table_t *table, const char *filename)
     }
 
     stabs_free_entries(entries, count);
+
+    if (success)
+        symbols_sort_by_address(table);
+
     return success;
 }
 
@@ -345,6 +349,10 @@ bool symbols_load_aout(symbol_table_t *table, const char *filename)
     }
 
     aout_free_entries(entries, count);
+
+    if (success)
+        symbols_sort_by_address(table);
+
     return success;
 }
 
@@ -392,6 +400,9 @@ bool symbols_load_map(symbol_table_t *table, const char *filename)
         add_file_start_symbol(table, "", false);
     }
 
+    if (success)
+        symbols_sort_by_address(table);
+
     return success;
 }
 
@@ -409,6 +420,15 @@ const symbol_entry_t *symbols_lookup_by_address(const symbol_table_t *table, uin
                                      sizeof(symbol_entry_t), compare_entries_by_address);
 
     return result;
+}
+
+// Sort the symbol table by address (required for bsearch lookups)
+void symbols_sort_by_address(symbol_table_t *table)
+{
+    if (!table || table->count < 2)
+        return;
+
+    qsort(table->entries, table->count, sizeof(symbol_entry_t), compare_entries_by_address);
 }
 
 // Dump all symbols to stdout for debugging
@@ -627,7 +647,7 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
     fseek(file, 16 + header.a_zp * 2, SEEK_SET);
 
     // Load text segment
-    info->segments[0].start_address = 0; // TEXT_START in memory
+    info->segments[0].start_address = header.a_entry ? header.a_entry : 0;
     info->segments[0].size = header.a_text;
     info->segments[0].is_text = true;
     info->segments[0].data = malloc(header.a_text * 2); // * 2 because we need bytes not words
@@ -654,7 +674,7 @@ bool symbols_load_binary(const char *filename, binary_info_t *info)
     }
 
     // Load data segment - properly located after text
-    info->segments[1].start_address = header.a_text; // DATA_START is text_size in aout
+    info->segments[1].start_address = (header.a_entry ? header.a_entry : 0) + header.a_text;
     info->segments[1].size = header.a_data;
     info->segments[1].is_text = false;
     info->segments[1].data = malloc(header.a_data * 2); // * 2 because we need bytes not words

@@ -110,4 +110,10 @@ uint16_t symbols_get_next_line_address(const symbol_table_t* table, uint16_t cur
 // Comparison function for sorting entries by address
 int compare_entries_by_address(const void* a, const void* b);
 
-#endif /* SYMBOLS_H */ 
+// Sort the symbol table by address (required for bsearch lookups)
+void symbols_sort_by_address(symbol_table_t* table);
+
+// Dump all symbols to stdout for debugging
+void symbols_dump_all(const symbol_table_t* table);
+
+#endif /* SYMBOLS_H */
