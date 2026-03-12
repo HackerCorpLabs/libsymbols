@@ -422,6 +422,23 @@ const symbol_entry_t *symbols_lookup_by_address(const symbol_table_t *table, uin
     return result;
 }
 
+// Look up a symbol by name (linear search)
+const symbol_entry_t *symbols_lookup_by_name(const symbol_table_t *table, const char *name)
+{
+    if (!table || !name || table->count == 0)
+        return NULL;
+
+    for (size_t i = 0; i < table->count; i++)
+    {
+        if (table->entries[i].name && strcmp(table->entries[i].name, name) == 0)
+        {
+            return &table->entries[i];
+        }
+    }
+
+    return NULL;
+}
+
 // Sort the symbol table by address (required for bsearch lookups)
 void symbols_sort_by_address(symbol_table_t *table)
 {
