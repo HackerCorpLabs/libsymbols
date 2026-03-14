@@ -394,6 +394,23 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
         return -1;
     }
 
+    // Validate magic number - reject files that are not a.out format
+    switch (header.a_magic)
+    {
+    case A_MAGIC1: // 0407 - normal
+    case A_MAGIC2: // 0410 - read-only text
+    case A_MAGIC3: // 0411 - separated I&D
+    case A_MAGIC4: // 0405 - read-only shareable
+    case A_MAGIC5: // 0430 - auto-overlay (nonseparate)
+    case A_MAGIC6: // 0431 - auto-overlay (separate)
+        break;
+    default:
+        fprintf(stderr, "Not a valid a.out file: bad magic 0x%04X (expected 0407/0410/0411/0405/0430/0431)\n",
+                header.a_magic);
+        fclose(f);
+        return -1;
+    }
+
     // Skip zero page if present
     fseek(f, 16 + header.a_zp * 2, SEEK_SET);
 
@@ -483,6 +500,18 @@ bool aout_parse_file(const char *filename, aout_entry_t **entries, size_t *count
 
     if (load_header(f, &header, false) != 0)
     {
+        fclose(f);
+        return false;
+    }
+
+    // Validate magic number
+    switch (header.a_magic)
+    {
+    case A_MAGIC1: case A_MAGIC2: case A_MAGIC3:
+    case A_MAGIC4: case A_MAGIC5: case A_MAGIC6:
+        break;
+    default:
+        fprintf(stderr, "Not a valid a.out file: bad magic 0x%04X\n", header.a_magic);
         fclose(f);
         return false;
     }

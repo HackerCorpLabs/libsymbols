@@ -618,7 +618,13 @@ uint16_t symbols_get_next_line_address(const symbol_table_t *table, uint16_t cur
     {
         if (table->entries[i].type == SYMBOL_TYPE_LINE)
         {
-            uint16_t diff = abs(table->entries[i].address - current_address);
+            uint16_t addr = table->entries[i].address;
+            uint16_t diff;
+            if (addr <= current_address)
+                diff = current_address - addr;
+            else
+                diff = addr - current_address;
+
             if (diff < closest_diff)
             {
                 closest_diff = diff;
@@ -630,7 +636,7 @@ uint16_t symbols_get_next_line_address(const symbol_table_t *table, uint16_t cur
     if (!current)
         return 0;
 
-    // Find the next line entry in the same file
+    // Find the next line entry in the same file at a STRICTLY HIGHER address
     const symbol_entry_t *next = NULL;
     uint16_t next_address = UINT16_MAX;
 
@@ -638,7 +644,7 @@ uint16_t symbols_get_next_line_address(const symbol_table_t *table, uint16_t cur
     {
         if (table->entries[i].type == SYMBOL_TYPE_LINE &&
             strcmp(table->entries[i].filename, current->filename) == 0 &&
-            table->entries[i].line > current->line &&
+            table->entries[i].address > current_address &&
             table->entries[i].address < next_address)
         {
             next = &table->entries[i];
