@@ -374,7 +374,7 @@ int load_header(FILE *f, aout_header_t *header, bool verbose)
 /// @brief Loads a PDP-11 a.out file and writes the text/data segments to memory.
 /// @param filename The filename of the a.out file to load
 /// @return -1 on error, else the entry point address
-int load_aout(const char *filename, bool verbose, write_memory_callback write_memory)
+int load_aout(const char *filename, bool verbose, write_memory_callback write_memory, uint16_t text_start)
 {
     uint16_t dataLoadAddress;
 
@@ -414,8 +414,8 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
     // Skip zero page if present
     fseek(f, 16 + header.a_zp * 2, SEEK_SET);
 
-    // Use a_entry as load base address (e.g. 010000 for ND-BSD kernel)
-    uint16_t text_start = header.a_entry ? header.a_entry : TEXT_START;
+    // text_start is the load base address, passed by caller.
+    // Default 0 for user programs. Kernel uses -T 010000.
 
     // Load the text segment
     if (verbose)

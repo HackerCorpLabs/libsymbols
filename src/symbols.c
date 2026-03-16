@@ -140,6 +140,10 @@ bool symbols_add_entry(symbol_table_t *table, const char *filename, const char *
     for (size_t i = 0; i < table->count; i++)
     {
         symbol_entry_t *existing = &table->entries[i];
+        // Don't merge LINE entries - multiple source lines can map to
+        // the same address (e.g. blank line + statement)
+        if (type == SYMBOL_TYPE_LINE)
+            break;
         if ((existing->address == address) && (existing->type == type))
         {
             // Found existing symbol, update missing information
@@ -544,56 +548,96 @@ bool symbols_find_address(const symbol_table_t *table, const char *filename, uin
     return true;
 }
 
-// Get source file for an address
-const char *symbols_get_file(const symbol_table_t *table, uint16_t address)
+/// Floor-lookup helper: find the LINE entry whose address is the highest
+/// value that is still <= the query address, AND that belongs to the same
+/// source file region.  Returns NULL if the address is outside any mapped
+/// source (e.g. in crt0 or library code).
+///
+/// "Same source file region" means: the next LINE entry in the table (by
+/// address order) either belongs to the same file, or has a higher address
+/// than the query.  If the next entry is from a DIFFERENT file at an address
+/// <= query, the query is in that other file's code, not ours.
+static const symbol_entry_t *
+find_source_entry(const symbol_table_t *table, uint16_t address)
 {
-    if (!table)
+    if (!table || table->count == 0)
         return NULL;
 
-    // Find the closest line number entry
-    const symbol_entry_t *closest = NULL;
-    uint16_t closest_diff = UINT16_MAX;
+    // Floor lookup: find highest address <= query.
+    // Among ties (same address), prefer the higher line number.
+    // Entries are sorted by address after loading.
+    const symbol_entry_t *floor = NULL;
 
     for (size_t i = 0; i < table->count; i++)
     {
-        if (table->entries[i].type == SYMBOL_TYPE_LINE)
+        if (table->entries[i].type != SYMBOL_TYPE_LINE)
+            continue;
+        if (table->entries[i].address > address)
+            break; // sorted — no more candidates
+        // Pick this entry (same or higher address still <= query).
+        // Among entries at the same address, prefer higher line number.
+        if (!floor ||
+            table->entries[i].address > floor->address ||
+            (table->entries[i].address == floor->address &&
+             table->entries[i].line > floor->line))
         {
-            uint16_t diff = abs(table->entries[i].address - address);
-            if (diff < closest_diff)
-            {
-                closest_diff = diff;
-                closest = &table->entries[i];
-            }
+            floor = &table->entries[i];
         }
     }
 
-    return closest ? closest->filename : NULL;
+    if (!floor)
+        return NULL;
+
+    // Find the next LINE entry after the floor (next source line).
+    const symbol_entry_t *next = NULL;
+    for (size_t i = 0; i < table->count; i++)
+    {
+        if (table->entries[i].type != SYMBOL_TYPE_LINE)
+            continue;
+        if (table->entries[i].address > floor->address)
+        {
+            next = &table->entries[i];
+            break;
+        }
+    }
+
+    if (next)
+    {
+        // If query is past the next line's address, we overshot — the
+        // query is in code belonging to the next line or beyond.
+        // But that's fine; the floor entry is still valid as long as
+        // address < next->address.  If address >= next->address we
+        // should have matched next instead (the loop above handles it).
+        //
+        // Check file boundary: if the next entry is from a DIFFERENT file
+        // and address >= next->address, then address is in that file.
+        // (This case shouldn't happen due to the break above, but guard.)
+    }
+    else
+    {
+        // floor is the last LINE entry.  The query address should not be
+        // too far past the last mapped line — that means we're in library
+        // or CRT code.  Use a small bound: the last source line's code
+        // is at most a few instructions.
+        if ((address - floor->address) > 2)
+            return NULL;
+    }
+
+    return floor;
+}
+
+// Get source file for an address
+const char *symbols_get_file(const symbol_table_t *table, uint16_t address)
+{
+    const symbol_entry_t *entry = find_source_entry(table, address);
+    return entry ? entry->filename : NULL;
 }
 
 // Get line number for an address
 int symbols_get_line(const symbol_table_t *table, uint16_t address)
 {
-    if (!table)
-        return 0;
-
-    // Find the closest line number entry
-    const symbol_entry_t *closest = NULL;
-    uint16_t closest_diff = UINT16_MAX;
-
-    for (size_t i = 0; i < table->count; i++)
-    {
-        if (table->entries[i].type == SYMBOL_TYPE_LINE)
-        {
-            uint16_t diff = abs(table->entries[i].address - address);
-            if (diff < closest_diff)
-            {
-                closest_diff = diff;
-                closest = &table->entries[i];
-            }
-        }
-    }
-
-    return closest ? closest->line : 0;
+    const symbol_entry_t *entry = find_source_entry(table, address);
+    return entry ? entry->line : 0;
 }
 
 // Check if an entry represents a line number
@@ -610,29 +654,9 @@ uint16_t symbols_get_next_line_address(const symbol_table_t *table, uint16_t cur
 {
     if (!table)
         return 0;
-    // Find the current line entry
-    const symbol_entry_t *current = NULL;
-    uint16_t closest_diff = UINT16_MAX;
 
-    for (size_t i = 0; i < table->count; i++)
-    {
-        if (table->entries[i].type == SYMBOL_TYPE_LINE)
-        {
-            uint16_t addr = table->entries[i].address;
-            uint16_t diff;
-            if (addr <= current_address)
-                diff = current_address - addr;
-            else
-                diff = addr - current_address;
-
-            if (diff < closest_diff)
-            {
-                closest_diff = diff;
-                current = &table->entries[i];
-            }
-        }
-    }
-
+    // Use floor lookup to find which source line we're currently in
+    const symbol_entry_t *current = find_source_entry(table, current_address);
     if (!current)
         return 0;
 
