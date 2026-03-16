@@ -142,7 +142,9 @@ bool symbols_add_entry(symbol_table_t *table, const char *filename, const char *
         symbol_entry_t *existing = &table->entries[i];
         // Don't merge LINE entries - multiple source lines can map to
         // the same address (e.g. blank line + statement)
-        if (type == SYMBOL_TYPE_LINE)
+        // Don't merge FILE entries - multiple source files all have
+        // address 0 but represent different files
+        if (type == SYMBOL_TYPE_LINE || type == SYMBOL_TYPE_FILE)
             break;
         if ((existing->address == address) && (existing->type == type))
         {
@@ -374,8 +376,21 @@ bool symbols_load_map(symbol_table_t *table, const char *filename)
         return false;
     }
 
-    // Add a symbol to tell that source files begins here (use the .s file name)
-    bool start_symbol_added = add_file_start_symbol(table, entries[0].filename, true);
+    /* Add FILE entries for every unique source file in the srcmap.
+     * Without these, symbols_find_address() can't match filenames
+     * for breakpoint resolution. */
+    {
+        const char *last_file = NULL;
+        for (size_t i = 0; i < count; i++)
+        {
+            if (entries[i].filename &&
+                (!last_file || strcmp(entries[i].filename, last_file) != 0))
+            {
+                add_file_start_symbol(table, entries[i].filename, true);
+                last_file = entries[i].filename;
+            }
+        }
+    }
 
     bool success = true;
     for (size_t i = 0; i < count; i++)
@@ -397,12 +412,6 @@ bool symbols_load_map(symbol_table_t *table, const char *filename)
     }
 
     mapfile_free_entries(entries, count);
-
-    if (start_symbol_added)
-    {
-        // add ending symbol
-        add_file_start_symbol(table, "", false);
-    }
 
     if (success)
         symbols_sort_by_address(table);
