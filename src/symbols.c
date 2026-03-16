@@ -616,10 +616,10 @@ find_source_entry(const symbol_table_t *table, uint16_t address)
     else
     {
         // floor is the last LINE entry.  The query address should not be
-        // too far past the last mapped line — that means we're in library
-        // or CRT code.  Use a small bound: the last source line's code
-        // is at most a few instructions.
-        if ((address - floor->address) > 2)
+        // too far past the last mapped line -- that means we're in library
+        // or CRT code.  Use a generous bound because C statements can
+        // compile to many instructions (arg pushes, calls, stores).
+        if ((address - floor->address) > 32)
             return NULL;
     }
 
