@@ -259,17 +259,29 @@ symbol_function_t *
 symbols_find_function_at(symbol_debug_info_t *info, uint16_t address)
 {
     int i;
+    symbol_function_t *best = NULL;
+    uint16_t best_range = 0xFFFF;
 
     if (!info)
         return NULL;
 
     for (i = 0; i < info->function_count; i++) {
         symbol_function_t *fn = &info->functions[i];
-        if (address >= fn->start_address && address <= fn->end_address
-            && fn->end_address != 0xFFFF)
-            return fn;
+        uint16_t range;
+
+        if (address < fn->start_address || address > fn->end_address)
+            continue;
+
+        range = fn->end_address - fn->start_address;
+        if (fn->end_address == 0xFFFF)
+            range = 0xFFFE;  /* Penalize sentinel, but still consider */
+
+        if (!best || range < best_range) {
+            best = fn;
+            best_range = range;
+        }
     }
-    return NULL;
+    return best;
 }
 
 symbol_variable_t *
