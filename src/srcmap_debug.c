@@ -265,7 +265,8 @@ symbols_find_function_at(symbol_debug_info_t *info, uint16_t address)
 
     for (i = 0; i < info->function_count; i++) {
         symbol_function_t *fn = &info->functions[i];
-        if (address >= fn->start_address && address <= fn->end_address)
+        if (address >= fn->start_address && address <= fn->end_address
+            && fn->end_address != 0xFFFF)
             return fn;
     }
     return NULL;
