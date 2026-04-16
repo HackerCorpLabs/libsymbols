@@ -376,7 +376,7 @@ int load_header(FILE *f, aout_header_t *header, bool verbose)
 /// @return -1 on error, else the entry point address
 int load_aout(const char *filename, bool verbose, write_memory_callback write_memory, uint16_t text_start)
 {
-    uint16_t dataLoadAddress;
+    uint32_t dataLoadAddress;
 
     aout_header_t header;
     memset(&header, 0, sizeof(header));
@@ -411,8 +411,29 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
         return -1;
     }
 
-    // Skip zero page if present
-    fseek(f, 16 + header.a_zp * 2, SEEK_SET);
+    // For xexec (0431/0430), skip the 16-word ovlhdr that sits between
+    // the exec header and the text section.  Read ov_siz[] for later
+    // overlay loading.
+    uint16_t ov_siz[15] = {0};
+    int is_xexec = (header.a_magic == A_MAGIC5 || header.a_magic == A_MAGIC6);
+    if (is_xexec) {
+        // ovlhdr: word 0 = max_ovl, words 1..15 = ov_siz[0..14]
+        uint16_t max_ovl;
+        read_word(f, &max_ovl);
+        for (int oi = 0; oi < 15; oi++)
+            read_word(f, &ov_siz[oi]);
+        if (verbose) {
+            printf("xexec: max_ovl=%u\n", max_ovl);
+            for (int oi = 0; oi < 15; oi++)
+                if (ov_siz[oi])
+                    printf("  ov_siz[%d]=%u words\n", oi, ov_siz[oi]);
+        }
+    }
+
+    // Skip zero page if present (after ovlhdr for xexec)
+    long text_file_offset = is_xexec ? 48 : 16;
+    text_file_offset += header.a_zp * 2;
+    fseek(f, text_file_offset, SEEK_SET);
 
     // text_start is the load base address, passed by caller.
     // Default 0 for user programs. Kernel uses -T 010000.
@@ -437,9 +458,16 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
     }
 
     // Load the data segment
-    uint16_t data_addr = DATA_START(text_start, header.a_text);
+    // Split I/D (0411): load data at separate 64K physical page so
+    // it doesn't overlap text. Bootstrap/kernel maps D-space VPN 0
+    // to this physical location via page tables.
+    uint32_t data_addr = (header.a_magic == A_MAGIC3 || header.a_magic == A_MAGIC6)
+        ? DATA_START_SPLIT_ID
+        : DATA_START(text_start, header.a_text);
     if (verbose)
-        printf("Loading data segment at 0%06o (%u words)\n", data_addr, header.a_data);
+        printf("Loading data segment at 0%o (%u words)%s\n",
+               data_addr, header.a_data,
+               header.a_magic == A_MAGIC3 ? " [split I/D, phys 64K]" : "");
 
     for (uint16_t i = 0; i < header.a_data; i++)
     {
@@ -456,12 +484,37 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
             write_memory(dataLoadAddress, word);
     }
 
-    // Calculate symbol table offset
-    long sym_offset = 16 +                  // Header size
-                      (header.a_zp * 2) +   // Zero page size
+    // For xexec: load overlay text sections after data.  The kernel's
+    // overlay_init() will relocate them to permanent physical homes.
+    if (is_xexec && write_memory) {
+        uint32_t ov_load_addr = data_addr + header.a_data;
+        for (int oi = 0; oi < 15; oi++) {
+            if (ov_siz[oi] == 0) continue;
+            if (verbose)
+                printf("Loading overlay %d at 0%06o (%u words)\n",
+                       oi + 1, ov_load_addr, ov_siz[oi]);
+            for (uint16_t j = 0; j < ov_siz[oi]; j++) {
+                uint16_t word;
+                if (!read_word(f, &word)) {
+                    fprintf(stderr, "Unexpected EOF in overlay %d\n", oi + 1);
+                    break;
+                }
+                write_memory(ov_load_addr + j, word);
+            }
+            ov_load_addr += ov_siz[oi];
+        }
+    }
+
+    // Calculate symbol table offset (account for xexec ovlhdr + overlay text)
+    long ovl_total_bytes = 0;
+    if (is_xexec) {
+        for (int oi = 0; oi < 15; oi++)
+            ovl_total_bytes += ov_siz[oi] * 2;
+    }
+    long sym_offset = text_file_offset +    // Header(+ovlhdr for xexec)
                       (header.a_text * 2) + // Text segment
                       (header.a_data * 2) + // Data segment
-                      (header.a_zp * 2) +   // Zero page relocation
+                      ovl_total_bytes +     // Overlay text sections
                       (header.a_text * 2) + // Text relocation
                       (header.a_data * 2);  // Data relocation
 
