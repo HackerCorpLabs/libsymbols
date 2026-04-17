@@ -484,10 +484,11 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
             write_memory(dataLoadAddress, word);
     }
 
-    // For xexec: load overlay text sections after data.  The kernel's
-    // overlay_init() will relocate them to permanent physical homes.
+    // For xexec: load overlay text sections after BSS.  Must be past
+    // _end (data+bss) so the kernel's BSS zero loop doesn't wipe them.
+    // overlay_init() reads from here and copies to permanent physical homes.
     if (is_xexec && write_memory) {
-        uint32_t ov_load_addr = data_addr + header.a_data;
+        uint32_t ov_load_addr = data_addr + header.a_data + header.a_bss;
         for (int oi = 0; oi < 15; oi++) {
             if (ov_siz[oi] == 0) continue;
             if (verbose)
