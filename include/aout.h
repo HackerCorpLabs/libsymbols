@@ -448,10 +448,11 @@ typedef struct {
 // Memory layout constants - TEXT_START is default for a_entry==0
 #define TEXT_START 00000  // Start of text segment - start at address 0
 #define DATA_START(text_start, text_size) ((text_start) + (text_size))  // Start of data segment
+#define DATA_START_SPLIT_ID 0x8000  // Split I/D: data loads at second 64K physical page
 
 
 // I need a callback function to write to memory
-typedef void (*write_memory_callback)(uint16_t address, uint16_t value);
+typedef void (*write_memory_callback)(uint32_t address, uint16_t value);
 
 /// @brief Parse a.out file and return a list of symbols
 /// @param filename 
