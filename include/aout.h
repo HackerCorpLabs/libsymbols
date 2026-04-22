@@ -448,7 +448,7 @@ typedef struct {
 // Memory layout constants - TEXT_START is default for a_entry==0
 #define TEXT_START 00000  // Start of text segment - start at address 0
 #define DATA_START(text_start, text_size) ((text_start) + (text_size))  // Start of data segment
-#define DATA_START_SPLIT_ID 0x8000  // Split I/D: data loads at second 64K physical page
+#define DATA_START_SPLIT_ID 0x10000  // Split I/D: data at physical 64K (click 64)
 
 
 // I need a callback function to write to memory
@@ -466,7 +466,7 @@ bool aout_parse_file(const char *filename, aout_entry_t **entries, size_t *count
 /// @param verbose 
 /// @param write_memory 
 /// @return 
-int load_aout(const char* filename, bool verbose, write_memory_callback write_memory, uint16_t text_start);
+int load_aout(const char* filename, bool verbose, write_memory_callback write_memory, uint32_t text_start);
 
 /// @brief Get the type of a symbol
 /// @param type 

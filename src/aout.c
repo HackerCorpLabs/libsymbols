@@ -374,7 +374,7 @@ int load_header(FILE *f, aout_header_t *header, bool verbose)
 /// @brief Loads a PDP-11 a.out file and writes the text/data segments to memory.
 /// @param filename The filename of the a.out file to load
 /// @return -1 on error, else the entry point address
-int load_aout(const char *filename, bool verbose, write_memory_callback write_memory, uint16_t text_start)
+int load_aout(const char *filename, bool verbose, write_memory_callback write_memory, uint32_t text_start)
 {
     uint32_t dataLoadAddress;
 
@@ -464,29 +464,10 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
     uint32_t data_addr = (header.a_magic == A_MAGIC3 || header.a_magic == A_MAGIC6)
         ? DATA_START_SPLIT_ID
         : DATA_START(text_start, header.a_text);
-    if (verbose)
-        printf("Loading data segment at 0%o (%u words)%s\n",
-               data_addr, header.a_data,
-               header.a_magic == A_MAGIC3 ? " [split I/D, phys 64K]" : "");
 
-    for (uint16_t i = 0; i < header.a_data; i++)
-    {
-        uint16_t word;
-        if (!read_word(f, &word))
-        {
-            fprintf(stderr, "Unexpected EOF while reading data segment\n");
-            break;
-        }
-
-        dataLoadAddress = data_addr + i;
-
-        if (write_memory)
-            write_memory(dataLoadAddress, word);
-    }
-
-    // For xexec: load overlay text sections after BSS.  Must be past
-    // _end (data+bss) so the kernel's BSS zero loop doesn't wipe them.
-    // overlay_init() reads from here and copies to permanent physical homes.
+    // For xexec: overlay blobs sit BETWEEN text and data in the file.
+    // File layout: header | ovlhdr | TEXT | OVERLAYS | DATA | reloc
+    // Read overlays first (in file order), load to memory after data+BSS.
     if (is_xexec && write_memory) {
         uint32_t ov_load_addr = data_addr + header.a_data + header.a_bss;
         for (int oi = 0; oi < 15; oi++) {
@@ -504,6 +485,33 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
             }
             ov_load_addr += ov_siz[oi];
         }
+    } else if (is_xexec) {
+        // Skip overlay blobs in file even without write_memory
+        uint32_t total_ov = 0;
+        for (int oi = 0; oi < 15; oi++) total_ov += ov_siz[oi];
+        fseek(f, (long)total_ov * 2, SEEK_CUR);
+    }
+
+    // Now read the data segment (follows overlays in the file)
+    if (verbose)
+        printf("Loading data segment at 0%o (%u words)%s\n",
+               data_addr, header.a_data,
+               (header.a_magic == A_MAGIC3 || header.a_magic == A_MAGIC6)
+               ? " [split I/D, phys 64K]" : "");
+
+    for (uint16_t i = 0; i < header.a_data; i++)
+    {
+        uint16_t word;
+        if (!read_word(f, &word))
+        {
+            fprintf(stderr, "Unexpected EOF while reading data segment\n");
+            break;
+        }
+
+        dataLoadAddress = data_addr + i;
+
+        if (write_memory)
+            write_memory(dataLoadAddress, word);
     }
 
     // Calculate symbol table offset (account for xexec ovlhdr + overlay text)
