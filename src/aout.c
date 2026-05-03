@@ -467,9 +467,10 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
 
     // For xexec: overlay blobs sit BETWEEN text and data in the file.
     // File layout: header | ovlhdr | TEXT | OVERLAYS | DATA | reloc
-    // Read overlays first (in file order), load to memory after data+BSS.
+    // Overlays are CODE -- load them in I-space right after the base text.
+    // The kernel's overlay_init() expects them at text_start + a_text.
     if (is_xexec && write_memory) {
-        uint32_t ov_load_addr = data_addr + header.a_data + header.a_bss;
+        uint32_t ov_load_addr = text_start + header.a_text;
         for (int oi = 0; oi < 15; oi++) {
             if (ov_siz[oi] == 0) continue;
             if (verbose)
@@ -499,6 +500,9 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
                (header.a_magic == A_MAGIC3 || header.a_magic == A_MAGIC6)
                ? " [split I/D, phys 64K]" : "");
 
+    if (verbose)
+        printf("  data file offset = %ld\n", ftell(f));
+
     for (uint16_t i = 0; i < header.a_data; i++)
     {
         uint16_t word;
@@ -509,6 +513,9 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
         }
 
         dataLoadAddress = data_addr + i;
+
+        if (verbose && i < 4)
+            printf("  data[%u] = 0%06o (0x%04X)\n", i, word, word);
 
         if (write_memory)
             write_memory(dataLoadAddress, word);
