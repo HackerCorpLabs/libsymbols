@@ -466,7 +466,7 @@ bool aout_parse_file(const char *filename, aout_entry_t **entries, size_t *count
 /// @param verbose 
 /// @param write_memory 
 /// @return 
-int load_aout(const char* filename, bool verbose, write_memory_callback write_memory, uint32_t text_start);
+int load_aout(const char* filename, bool verbose, write_memory_callback write_memory, uint32_t text_start, bool overlay_deposit);
 
 /// @brief Get the type of a symbol
 /// @param type 
