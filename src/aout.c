@@ -374,7 +374,7 @@ int load_header(FILE *f, aout_header_t *header, bool verbose)
 /// @brief Loads a PDP-11 a.out file and writes the text/data segments to memory.
 /// @param filename The filename of the a.out file to load
 /// @return -1 on error, else the entry point address
-int load_aout(const char *filename, bool verbose, write_memory_callback write_memory, uint32_t text_start)
+int load_aout(const char *filename, bool verbose, write_memory_callback write_memory, uint32_t text_start, bool overlay_deposit)
 {
     uint32_t dataLoadAddress;
 
@@ -457,13 +457,36 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
             write_memory(dataLoadAddress, word);
     }
 
+    // Compute total overlay size (needed before data_addr calculation)
+    uint32_t total_overlay_words = 0;
+    if (is_xexec) {
+        for (int oi = 0; oi < 15; oi++)
+            total_overlay_words += ov_siz[oi];
+    }
+
     // Load the data segment
     // Split I/D (0411): load data at separate 64K physical page so
     // it doesn't overlap text. Bootstrap/kernel maps D-space VPN 0
     // to this physical location via page tables.
-    uint32_t data_addr = (header.a_magic == A_MAGIC3 || header.a_magic == A_MAGIC6)
-        ? DATA_START_SPLIT_ID
-        : DATA_START(text_start, header.a_text);
+    // For xexec split I/D: overlay blobs are loaded in I-space at
+    // text_start + a_text, so data must start ABOVE the overlays
+    // to avoid collision.
+    uint32_t data_addr;
+    if (header.a_magic == A_MAGIC3 || header.a_magic == A_MAGIC6) {
+        data_addr = DATA_START_SPLIT_ID;
+        if (is_xexec && total_overlay_words > 0) {
+            uint32_t ov_end = text_start + header.a_text + total_overlay_words;
+            if (ov_end > data_addr) {
+                // Round up to 1K click boundary
+                data_addr = (ov_end + 1023) & ~1023u;
+                if (verbose)
+                    printf("xexec: overlay end 0%06o above DATA_START_SPLIT_ID, "
+                           "relocating data to 0%06o\n", ov_end, data_addr);
+            }
+        }
+    } else {
+        data_addr = DATA_START(text_start, header.a_text);
+    }
 
     // For xexec: overlay blobs sit BETWEEN text and data in the file.
     // File layout: header | ovlhdr | TEXT | OVERLAYS | DATA | reloc
@@ -541,6 +564,49 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
     load_symbols_with_string_table(f, sym_offset, header.a_syms, verbose);
 
     fclose(f);
+
+    // Boot-info protocol: write 16-word block at physical address 0.
+    // Kernel reads this to find data location, overlay sizes, etc.
+    // Enabled via --overlay-deposit flag for split I/D kernels.
+    if (overlay_deposit && write_memory && (header.a_magic == A_MAGIC3 || header.a_magic == A_MAGIC6)) {
+        uint16_t data_click = (uint16_t)(data_addr >> 10);
+        uint16_t text_click = (uint16_t)(text_start >> 10);
+        uint16_t text_nclicks = (uint16_t)((header.a_text + 1023) >> 10);
+        uint16_t data_nclicks = (uint16_t)(((header.a_data + header.a_bss) + 1023) >> 10);
+        uint16_t ov_click = (uint16_t)((text_start + header.a_text) >> 10);
+        uint16_t flags = 0x0001;  // bit 0 = split I/D
+        if (is_xexec) flags |= 0x0002;  // bit 1 = xexec
+        int num_ov = 0;
+        for (int oi = 0; oi < 15 && oi < 6; oi++)
+            if (ov_siz[oi]) num_ov = oi + 1;
+
+        write_memory(0,  0xBD11);                           // word 0: magic
+        write_memory(1,  data_click);                       // word 1: data_click
+        write_memory(2,  data_nclicks);                     // word 2: data_nclicks
+        write_memory(3,  text_click);                       // word 3: text_click
+        write_memory(4,  text_nclicks);                     // word 4: text_nclicks
+        write_memory(5,  ov_click);                         // word 5: overlay_click
+        write_memory(6,  (uint16_t)total_overlay_words);    // word 6: overlay_words
+        write_memory(7,  header.a_entry);                   // word 7: entry_addr
+        write_memory(8,  flags);                            // word 8: flags
+        write_memory(9,  (uint16_t)num_ov);                 // word 9: num_overlays
+        for (int oi = 0; oi < 6; oi++)                      // words 10-15: ov_siz
+            write_memory(10 + oi, ov_siz[oi]);
+
+        if (verbose) {
+            printf("Boot-info block (16 words at phys 0):\n");
+            printf("  magic=0xBD11 data_click=%u data_n=%u\n",
+                   data_click, data_nclicks);
+            printf("  text_click=%u text_n=%u ov_click=%u ov_words=%u\n",
+                   text_click, text_nclicks, ov_click,
+                   (uint16_t)total_overlay_words);
+            printf("  entry=0%06o flags=0x%04X novl=%d\n",
+                   header.a_entry, flags, num_ov);
+            for (int oi = 0; oi < 6; oi++)
+                if (ov_siz[oi])
+                    printf("  ov_siz[%d]=%u\n", oi, ov_siz[oi]);
+        }
+    }
 
     if (verbose)
         printf("\n\n");
