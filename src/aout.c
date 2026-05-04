@@ -344,7 +344,7 @@ int load_header(FILE *f, aout_header_t *header, bool verbose)
 {
     // Read and parse all 8 header fields from the file
      // Read and parse all 8 header fields from the file
-    for (int i = 0; i < sizeof(*header) / 2; i++) {
+    for (size_t i = 0; i < sizeof(*header) / 2; i++) {
         uint16_t* field = ((uint16_t*)header) + i;
         if (!read_word(f, field)) {
             fprintf(stderr, "Failed to read a.out header field %d\n", i);
