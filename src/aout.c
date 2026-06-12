@@ -577,7 +577,7 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
         uint16_t flags = 0x0001;  // bit 0 = split I/D
         if (is_xexec) flags |= 0x0002;  // bit 1 = xexec
         int num_ov = 0;
-        for (int oi = 0; oi < 15 && oi < 6; oi++)
+        for (int oi = 0; oi < 15; oi++)
             if (ov_siz[oi]) num_ov = oi + 1;
 
         write_memory(0,  0xBD11);                           // word 0: magic
@@ -590,7 +590,11 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
         write_memory(7,  header.a_entry);                   // word 7: entry_addr
         write_memory(8,  flags);                            // word 8: flags
         write_memory(9,  (uint16_t)num_ov);                 // word 9: num_overlays
-        for (int oi = 0; oi < 6; oi++)                      // words 10-15: ov_siz
+        /* words 10..(9+num_ov): one ov_siz per overlay.  Forward ALL of them
+         * (was capped at 6, which limited the kernel to 7 overlays via an
+         * inference hack).  Production kernels read only the first 6+infer, so
+         * writing more is backward-compatible; test kernels read all of them. */
+        for (int oi = 0; oi < num_ov; oi++)                 // words 10..9+num_ov
             write_memory(10 + oi, ov_siz[oi]);
 
         if (verbose) {
@@ -602,7 +606,7 @@ int load_aout(const char *filename, bool verbose, write_memory_callback write_me
                    (uint16_t)total_overlay_words);
             printf("  entry=0%06o flags=0x%04X novl=%d\n",
                    header.a_entry, flags, num_ov);
-            for (int oi = 0; oi < 6; oi++)
+            for (int oi = 0; oi < num_ov; oi++)
                 if (ov_siz[oi])
                     printf("  ov_siz[%d]=%u\n", oi, ov_siz[oi]);
         }
